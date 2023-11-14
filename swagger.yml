@@ -1,0 +1,274 @@
+openapi: 3.0.2
+info:
+  version: 1.0.0
+  title: Loyalty Engine
+  description: Collection of loyalty engine endpoints.
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: https://staging.api.example.com/v1
+    description: Staging server
+paths:
+  /v1/transaction:
+    get:
+      tags:
+        - Transaction
+      description: Returns all transactions
+      parameters:
+        - name: handpoint_merchant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: page
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          example: 1
+        - name: query
+          in: query
+          schema:
+            type: string
+          example: "please enter transaction ID or card number"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionDetail"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              examples:
+                MerchantNotFound:
+                  $ref: "#/components/examples/MerchantNotFound"
+
+  /v1/transaction/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+    get:
+      tags:
+        - Transaction
+      description: Returns detail of given transaction. You might not need this if previous screen is transaction list. Both endpoints are guaranteed to return same response.
+      parameters:
+        - name: handpoint_merchant_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionDetail"
+        "404":
+          description: "Not found"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              examples:
+                MerchantNotFound:
+                  $ref: "#/components/examples/MerchantNotFound"
+
+  /v1/transaction/{id}/refund-reversal:
+    post:
+      tags:
+        - "Refund and Reversal"
+      description: Cancel previous accumulation or redemption transaction. Also can be used to cancel refund transaction. Canceling accumulation means the points that has been given will be taken back from customer. Canceling redemption the points that previously used will be given back to customer.
+      parameters:
+        - name: id
+          in: path
+          description: Transaction ID
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        description: Request body
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                handpoint_merchant_id:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                    - refund
+                    - reversal
+                transaction_id:
+                  type: string
+                amount:
+                  type: integer
+                  format: int64
+                  example: 1000
+                currency:
+                  $ref: "#/components/schemas/Currency"
+      responses:
+        "200":
+          description: Success
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Receipt"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name:
+                          type: string
+                        message:
+                          type: string
+              examples:
+                TransactionAlreadyRefunded:
+                  summary: Transaction had been refunded
+                  value:
+                    message: "Input data is not valid"
+                    details:
+                      - name: "transaction_id"
+                        message: "Transaction had been refunded"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              examples:
+                MerchantNotFound:
+                  $ref: "#/components/examples/MerchantNotFound"
+                NotFound:
+                  summary: Transaction not found
+                  value:
+                    message: "Transaction not found"
+components:
+  schemas:
+    Receipt:
+      type: object
+      properties:
+        transaction_type:
+          $ref: "#/components/schemas/TransactionType"
+        points_earned:
+          type: string
+          example: "0.99"
+        points_earned_value:
+          type: string
+          example: "0.09"
+        points_removed:
+          type: string
+          example: "0"
+        points_removed_value:
+          type: string
+          example: "0"
+        points_redemeed:
+          type: string
+          example: "0"
+        points_redemeed_value:
+          type: string
+          example: "0"
+        points_restored:
+          type: string
+          example: "0"
+        points_restored_value:
+          type: string
+          example: "0"
+        point_balance:
+          type: string
+          example: "0.99"
+        point_balance_value:
+          type: string
+          example: "0.09"
+        currency:
+          $ref: "#/components/schemas/Currency"
+        is_limit_reached:
+          type: boolean
+    TransactionType:
+      type: string
+      enum:
+        - SALE
+        - REFUND
+        - "SALE REVERSAL"
+        - "REFUND REVERSAL"
+    Currency:
+      type: string
+      enum:
+        - CAD
+        - USD
+    TransactionDetail:
+      type: array
+      items:
+        type: object
+        properties:
+          id:
+            type: string
+          type:
+            $ref: "#/components/schemas/TransactionType"
+          original_amount:
+            type: integer
+            format: int64
+            description: amount in cent
+            example: 10000
+          final_amount:
+            type: integer
+            format: int64
+            description: amount in cent
+            example: 1000
+          is_redemption:
+            type: boolean
+          currency:
+            $ref: "#/components/schemas/Currency"
+          card_plan:
+            type: string
+            enum:
+              - MASTERCARD
+              - VISA
+              - MAESTRO
+              - AMEX
+              - DISCOVER
+              - JCB
+              - DINERS
+              - UNIONPAY
+              - INTERAC
+          date:
+            type: string
+            format: date-time
+            example: "2023-11-02T12:00:00Z"
+          loyalty:
+            $ref: "#/components/schemas/Receipt"
+  examples:
+    MerchantNotFound:
+      summary: Merchant not found
+      value:
+        message: "Merchant is not found"
